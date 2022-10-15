@@ -84,6 +84,7 @@ typings/
 dist/*
 !dist/index.html
 !dist/assets
+!dist/textures
 
 # Gatsby files
 .cache/
