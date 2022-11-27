@@ -1,13 +1,10 @@
 import * as THREE from "three";
+import { Mesh } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import Stats from "three/examples/jsm/libs/stats.module.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-const stats = Stats();
-document.body.appendChild(stats.dom);
-
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight, false);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -15,54 +12,77 @@ const scene = new THREE.Scene();
 const top = 3;
 const right = (window.innerWidth / window.innerHeight) * top;
 const camera = new THREE.OrthographicCamera(-right, right, top, -top, 0.1, 100);
-camera.position.z = 10;
+const cameraStartingPosition = new THREE.Vector3(0, 0, 10);
+camera.position.copy(cameraStartingPosition);
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(-1, 1, 2);
-scene.add(ambientLight);
-scene.add(directionalLight);
+renderer.setClearColor(0x000000, 0);
 
-scene.background = new THREE.Color(0xffffff);
+function resizeCanvas() {
+    const { width, clientWidth, height, clientHeight } = renderer.domElement;
+    if (width === clientWidth && height === clientHeight) return;
 
-const onWindowResize = () => {
-    camera.right = (window.innerWidth / window.innerHeight) * top;
+    renderer.setSize(clientWidth, clientHeight, false);
+    camera.right = (clientWidth / clientHeight) * top;
     camera.left = -camera.right;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    render();
-};
-window.addEventListener("resize", onWindowResize, false);
+}
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
+controls.enablePan = false;
+controls.enableZoom = false;
+let usingControls = false;
+const switchControls = () => (usingControls = !usingControls);
+controls.addEventListener("start", switchControls);
+controls.addEventListener("end", switchControls);
 
 const loader = new GLTFLoader();
 
 let logo: THREE.Object3D;
 
 const init = async () => {
-    const gltf = await loader.loadAsync("/textures/drive.glb");
-    logo = gltf.scene.children[0];
-    logo.rotation.set(-Math.atan(Math.sqrt(2) / 2), -Math.PI / 4, Math.PI / 2);
+    logo = (await loader.loadAsync("/assets/drive.glb")).scene.children[0];
+
+    const colors = [
+        // front: top, right, left
+        0x035c64, 0x298d82, 0x4fbe9f,
+        // back: left right bottom
+        0x167573, 0x1c7d78, 0x3ca691,
+        // inner: top, right, bottom, left
+        0x4fbe9f, 0x298d82, 0x035c64, 0x035c64,
+        // middle: top, right, left, bottom
+        0x035c64, 0x035c64, 0x298d82, 0x298d82,
+    ];
+    logo.children.forEach((child, i) => {
+        (child as Mesh).material = new THREE.MeshBasicMaterial({ color: colors[i] });
+    });
+
+    logo.rotation.set(0, Math.PI, 0);
+
     scene.add(logo);
 };
 
 const clock = new THREE.Clock();
 
 const animate: FrameRequestCallback = () => {
-    const delta = new THREE.Vector3(0, 0, 10).sub(camera.position);
     const dt = clock.getDelta();
-    const multiplier = 2 * dt > 0.04 ? 0.04 : 2 * dt;
-    const moveBy = delta.length() > 0.01 ? delta.multiplyScalar(multiplier) : delta;
-    camera.position.add(delta.length() > 1 ? moveBy : delta);
+
+    if (!usingControls) {
+        const delta = cameraStartingPosition.clone().sub(camera.position);
+        if (delta.length() > 0.02) {
+            const multiplier = Math.min(4 * dt, 0.1);
+            camera.position.addScaledVector(delta, multiplier);
+        } else {
+            camera.position.copy(cameraStartingPosition);
+        }
+    }
 
     controls.update();
 
-    render();
+    resizeCanvas();
 
-    stats.update();
+    render();
 
     requestAnimationFrame(animate);
 };

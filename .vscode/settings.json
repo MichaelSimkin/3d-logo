@@ -27,5 +27,5 @@
       "other": true
     }
   },
-  "cSpell.words": ["GLTF", "lerp", "Parens", "threejs", "wireframe"]
+  "cSpell.words": ["GLTF", "lerp", "Parens", "Phong", "threejs", "wireframe"]
 }
